@@ -1,0 +1,290 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { COLORS, SIZES } from '../constants/theme';
+import { getSalon } from '../services/firebaseService';
+
+export default function ContactScreen() {
+  const [salon, setSalon] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSalon();
+  }, []);
+
+  const loadSalon = async () => {
+    try {
+      const data = await getSalon('tasarimhane');
+      setSalon(data);
+    } catch (error) {
+      console.error('Error loading salon:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <LinearGradient
+        colors={COLORS.headerGradient}
+        style={styles.header}
+      >
+        <Text style={styles.headerTitle}>İletişim</Text>
+      </LinearGradient>
+
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Salon Info Banner */}
+        <LinearGradient
+          colors={[...COLORS.headerGradient, '#C4B5FD']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.salonBanner}
+        >
+          <View style={styles.salonBannerLogo}>
+            <Image
+              source={{ uri: 'https://picsum.photos/seed/tasarimhane/100/100' }}
+              style={styles.salonLogo}
+            />
+          </View>
+          <View style={styles.salonBannerInfo}>
+            <Text style={styles.salonBannerName}>{salon?.name || 'TASARIMHANE'}</Text>
+            <Text style={styles.salonBannerType}>{salon?.type || ''}</Text>
+          </View>
+        </LinearGradient>
+
+        {/* Adres Bilgileri */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardIconBg}>
+              <Ionicons name="location-outline" size={22} color={COLORS.primary} />
+            </View>
+            <Text style={styles.cardTitle}>Adres Bilgileri</Text>
+          </View>
+          <View style={styles.addressContainer}>
+            <Text style={styles.addressText}>{salon?.address || ''}</Text>
+          </View>
+        </View>
+
+        {/* Çalışma Saatleri */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardIconBg}>
+              <Ionicons name="time-outline" size={22} color={COLORS.primary} />
+            </View>
+            <Text style={styles.cardTitle}>Çalışma Saatleri</Text>
+          </View>
+          <View style={styles.hoursContainer}>
+            {(salon?.workingHours || []).map((item, index) => (
+              <View key={index} style={styles.hourRow}>
+                <View style={styles.hourDayContainer}>
+                  <View style={[styles.statusDot, item.isOpen ? styles.dotOpen : styles.dotClosed]} />
+                  <Text style={styles.hourDay}>{item.day}</Text>
+                </View>
+                <Text style={styles.hourTime}>{item.hours}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Sosyal Medya */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardIconBg}>
+              <FontAwesome5 name="share-alt" size={18} color={COLORS.primary} />
+            </View>
+            <Text style={styles.cardTitle}>Sosyal Medya</Text>
+          </View>
+          <View style={styles.socialContainer}>
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+              <View style={[styles.socialIconBg, { backgroundColor: '#E8F0FE' }]}>
+                <FontAwesome5 name="facebook-f" size={22} color="#1877F2" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+              <View style={[styles.socialIconBg, { backgroundColor: '#FCE4EC' }]}>
+                <FontAwesome5 name="instagram" size={22} color="#E4405F" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+              <View style={[styles.socialIconBg, { backgroundColor: '#E8F4FD' }]}>
+                <FontAwesome5 name="twitter" size={22} color="#1DA1F2" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+              <View style={[styles.socialIconBg, { backgroundColor: '#F0F0F0' }]}>
+                <FontAwesome5 name="tiktok" size={22} color="#000000" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    paddingTop: 55,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  salonBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: SIZES.radiusLarge,
+    marginBottom: 20,
+  },
+  salonBannerLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    marginRight: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  salonLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  salonBannerInfo: {
+    flex: 1,
+  },
+  salonBannerName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  salonBannerType: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: SIZES.radiusLarge,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cardIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  addressContainer: {
+    backgroundColor: COLORS.background,
+    borderRadius: SIZES.radiusMedium,
+    padding: 14,
+  },
+  addressText: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    lineHeight: 20,
+  },
+  hoursContainer: {
+    backgroundColor: COLORS.background,
+    borderRadius: SIZES.radiusMedium,
+    padding: 14,
+  },
+  hourRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  hourDayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  dotOpen: {
+    backgroundColor: COLORS.success,
+  },
+  dotClosed: {
+    backgroundColor: COLORS.error,
+  },
+  hourDay: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  hourTime: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  socialContainer: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  socialButton: {
+    alignItems: 'center',
+  },
+  socialIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

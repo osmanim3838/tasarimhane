@@ -1,20 +1,18 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import AppNavigator from './src/navigation/AppNavigator';
+import { UserProvider } from './src/context/UserContext';
+import { seedDatabase } from './src/services/firebaseService';
 
 export default function App() {
+  useEffect(() => {
+    seedDatabase().catch(console.error);
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <UserProvider>
+      <StatusBar style="light" />
+      <AppNavigator />
+    </UserProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

@@ -1,0 +1,939 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  Modal,
+  Image,
+  RefreshControl,
+} from 'react-native';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SIZES } from '../constants/theme';
+import {
+  getSalon,
+  getPersonnel,
+  getSalonAppointments,
+  updateSalon,
+  updatePersonnel,
+  addPersonnel,
+  deletePersonnel,
+  updateAppointmentStatus,
+} from '../services/firebaseService';
+
+export default function OwnerDashboardScreen({ route, navigation }) {
+  const { salon: initialSalon } = route.params;
+  const [salon, setSalon] = useState(initialSalon);
+  const [personnel, setPersonnel] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Modals
+  const [salonEditModal, setSalonEditModal] = useState(false);
+  const [personnelModal, setPersonnelModal] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
+
+  // Salon edit fields
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editAbout, setEditAbout] = useState('');
+
+  // Personnel edit fields
+  const [pName, setPName] = useState('');
+  const [pSurname, setPSurname] = useState('');
+  const [pPhone, setPPhone] = useState('');
+  const [pRole, setPRole] = useState('');
+  const [pServices, setPServices] = useState('');
+  const [pWorkingHours, setPWorkingHours] = useState('');
+  const [pDayOff, setPDayOff] = useState('');
+  const [pAbout, setPAbout] = useState('');
+
+  const loadData = useCallback(async () => {
+    try {
+      const [salonData, personnelData, appointmentData] = await Promise.all([
+        getSalon(initialSalon.id),
+        getPersonnel(initialSalon.id),
+        getSalonAppointments(initialSalon.id).catch(() => []),
+      ]);
+      if (salonData) setSalon(salonData);
+      setPersonnel(personnelData);
+      setAppointments(appointmentData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [initialSalon.id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  // ===== SALON EDIT =====
+  const openSalonEdit = () => {
+    setEditName(salon.name || '');
+    setEditPhone(salon.phone || '');
+    setEditAddress(salon.address || '');
+    setEditAbout(salon.about || '');
+    setSalonEditModal(true);
+  };
+
+  const saveSalonEdit = async () => {
+    try {
+      await updateSalon(salon.id, {
+        name: editName,
+        phone: editPhone,
+        address: editAddress,
+        about: editAbout,
+      });
+      setSalon((prev) => ({ ...prev, name: editName, phone: editPhone, address: editAddress, about: editAbout }));
+      setSalonEditModal(false);
+      Alert.alert('Başarılı', 'Salon bilgileri güncellendi.');
+    } catch (error) {
+      Alert.alert('Hata', 'Güncellenirken bir sorun oluştu.');
+    }
+  };
+
+  // ===== PERSONNEL EDIT/ADD =====
+  const openPersonnelEdit = (person = null) => {
+    if (person) {
+      setEditingPerson(person);
+      setPName(person.name || '');
+      setPSurname(person.surname || '');
+      setPPhone(person.phone || '');
+      setPRole(person.role || '');
+      setPServices((person.services || []).join(', '));
+      setPWorkingHours(person.workingHours || '');
+      setPDayOff(person.dayOff || '');
+      setPAbout(person.about || '');
+    } else {
+      setEditingPerson(null);
+      setPName('');
+      setPSurname('');
+      setPPhone('');
+      setPRole('');
+      setPServices('');
+      setPWorkingHours('');
+      setPDayOff('');
+      setPAbout('');
+    }
+    setPersonnelModal(true);
+  };
+
+  const savePersonnel = async () => {
+    if (!pName.trim() || !pSurname.trim()) {
+      Alert.alert('Uyarı', 'İsim ve soyisim zorunludur.');
+      return;
+    }
+    const data = {
+      name: pName.trim(),
+      surname: pSurname.trim(),
+      phone: pPhone.trim(),
+      role: pRole.trim(),
+      services: pServices.split(',').map((s) => s.trim()).filter(Boolean),
+      workingHours: pWorkingHours.trim(),
+      dayOff: pDayOff.trim(),
+      about: pAbout.trim(),
+      salonId: salon.id,
+    };
+
+    try {
+      if (editingPerson) {
+        await updatePersonnel(editingPerson.id, data);
+        Alert.alert('Başarılı', 'Personel güncellendi.');
+      } else {
+        await addPersonnel(data);
+        Alert.alert('Başarılı', 'Yeni personel eklendi.');
+      }
+      setPersonnelModal(false);
+      loadData();
+    } catch (error) {
+      Alert.alert('Hata', 'İşlem sırasında bir sorun oluştu.');
+    }
+  };
+
+  const handleDeletePersonnel = (person) => {
+    Alert.alert(
+      'Personel Sil',
+      `${person.name} ${person.surname} silinecek. Emin misiniz?`,
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Sil',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePersonnel(person.id);
+              loadData();
+              Alert.alert('Başarılı', 'Personel silindi.');
+            } catch (error) {
+              Alert.alert('Hata', 'Silme işlemi başarısız.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ===== APPOINTMENT STATUS =====
+  const handleAppointmentAction = async (appointment, status) => {
+    try {
+      await updateAppointmentStatus(appointment.id, status);
+      loadData();
+    } catch (error) {
+      Alert.alert('Hata', 'İşlem başarısız.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  const tabs = [
+    { key: 'overview', label: 'Genel', icon: 'grid-outline' },
+    { key: 'personnel', label: 'Personel', icon: 'people-outline' },
+    { key: 'appointments', label: 'Randevu', icon: 'calendar-outline' },
+    { key: 'settings', label: 'Salon', icon: 'settings-outline' },
+  ];
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <LinearGradient colors={COLORS.headerGradient} style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.replace('Entry')}>
+          <Ionicons name="arrow-back" size={22} color="#FFF" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>{salon.name}</Text>
+          <Text style={styles.headerSubtitle}>Yönetim Paneli</Text>
+        </View>
+        <View style={styles.ownerBadge}>
+          <Ionicons name="shield-checkmark" size={16} color="#FFF" />
+          <Text style={styles.ownerBadgeText}>Sahip</Text>
+        </View>
+      </LinearGradient>
+
+      {/* Tab Bar */}
+      <View style={styles.tabBar}>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Ionicons
+              name={tab.icon}
+              size={20}
+              color={activeTab === tab.key ? COLORS.primary : COLORS.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+      >
+        {activeTab === 'overview' && renderOverview()}
+        {activeTab === 'personnel' && renderPersonnel()}
+        {activeTab === 'appointments' && renderAppointments()}
+        {activeTab === 'settings' && renderSettings()}
+      </ScrollView>
+
+      {/* Salon Edit Modal */}
+      <Modal visible={salonEditModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Salon Bilgilerini Düzenle</Text>
+              <TouchableOpacity onPress={() => setSalonEditModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.fieldLabel}>Salon Adı</Text>
+              <TextInput style={styles.modalInput} value={editName} onChangeText={setEditName} />
+              <Text style={styles.fieldLabel}>Telefon</Text>
+              <TextInput style={styles.modalInput} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+              <Text style={styles.fieldLabel}>Adres</Text>
+              <TextInput style={styles.modalInput} value={editAddress} onChangeText={setEditAddress} multiline />
+              <Text style={styles.fieldLabel}>Hakkında</Text>
+              <TextInput style={[styles.modalInput, { height: 100 }]} value={editAbout} onChangeText={setEditAbout} multiline textAlignVertical="top" />
+            </ScrollView>
+            <TouchableOpacity style={styles.saveButton} onPress={saveSalonEdit}>
+              <Text style={styles.saveButtonText}>Kaydet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Personnel Edit Modal */}
+      <Modal visible={personnelModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingPerson ? 'Personel Düzenle' : 'Yeni Personel Ekle'}
+              </Text>
+              <TouchableOpacity onPress={() => setPersonnelModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.fieldLabel}>İsim *</Text>
+              <TextInput style={styles.modalInput} value={pName} onChangeText={setPName} />
+              <Text style={styles.fieldLabel}>Soyisim *</Text>
+              <TextInput style={styles.modalInput} value={pSurname} onChangeText={setPSurname} />
+              <Text style={styles.fieldLabel}>Telefon</Text>
+              <TextInput style={styles.modalInput} value={pPhone} onChangeText={setPPhone} keyboardType="phone-pad" />
+              <Text style={styles.fieldLabel}>Rol</Text>
+              <TextInput style={styles.modalInput} value={pRole} onChangeText={setPRole} />
+              <Text style={styles.fieldLabel}>Hizmetler (virgülle ayırın)</Text>
+              <TextInput style={styles.modalInput} value={pServices} onChangeText={setPServices} multiline />
+              <Text style={styles.fieldLabel}>Çalışma Saatleri</Text>
+              <TextInput style={styles.modalInput} value={pWorkingHours} onChangeText={setPWorkingHours} placeholder="10:00 - 22:00" />
+              <Text style={styles.fieldLabel}>İzin Günü</Text>
+              <TextInput style={styles.modalInput} value={pDayOff} onChangeText={setPDayOff} placeholder="Pazartesi" />
+              <Text style={styles.fieldLabel}>Hakkında</Text>
+              <TextInput style={[styles.modalInput, { height: 80 }]} value={pAbout} onChangeText={setPAbout} multiline textAlignVertical="top" />
+            </ScrollView>
+            <TouchableOpacity style={styles.saveButton} onPress={savePersonnel}>
+              <Text style={styles.saveButtonText}>{editingPerson ? 'Güncelle' : 'Ekle'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+
+  // =================== RENDER FUNCTIONS ===================
+
+  function renderOverview() {
+    return (
+      <View>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: '#EDE9FE' }]}>
+            <FontAwesome5 name="users" size={20} color={COLORS.primary} />
+            <Text style={styles.statNumber}>{personnel.length}</Text>
+            <Text style={styles.statLabel}>Personel</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: '#FEF3C7' }]}>
+            <Ionicons name="calendar" size={20} color={COLORS.warning} />
+            <Text style={styles.statNumber}>{appointments.length}</Text>
+            <Text style={styles.statLabel}>Randevu</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: '#D1FAE5' }]}>
+            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+            <Text style={styles.statNumber}>
+              {appointments.filter((a) => a.status === 'confirmed').length}
+            </Text>
+            <Text style={styles.statLabel}>Onaylı</Text>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <Text style={styles.sectionTitle}>Hızlı İşlemler</Text>
+        <TouchableOpacity style={styles.quickAction} onPress={() => setActiveTab('personnel')}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#EDE9FE' }]}>
+            <Ionicons name="person-add" size={20} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickActionTitle}>Personel Yönetimi</Text>
+            <Text style={styles.quickActionSub}>Ekle, düzenle veya sil</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.quickAction} onPress={() => setActiveTab('appointments')}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
+            <Ionicons name="calendar" size={20} color={COLORS.warning} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickActionTitle}>Randevular</Text>
+            <Text style={styles.quickActionSub}>Onayla veya iptal et</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.quickAction} onPress={openSalonEdit}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#DBEAFE' }]}>
+            <Ionicons name="settings" size={20} color={COLORS.info} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickActionTitle}>Salon Ayarları</Text>
+            <Text style={styles.quickActionSub}>Bilgileri güncelle</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  function renderPersonnel() {
+    return (
+      <View>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Personel Listesi</Text>
+          <TouchableOpacity style={styles.addButton} onPress={() => openPersonnelEdit()}>
+            <Ionicons name="add" size={20} color="#FFF" />
+            <Text style={styles.addButtonText}>Ekle</Text>
+          </TouchableOpacity>
+        </View>
+
+        {personnel.map((person) => (
+          <View key={person.id} style={styles.personnelCard}>
+            <View style={styles.personnelAvatar}>
+              {person.image ? (
+                <Image source={{ uri: person.image }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={24} color={COLORS.textMuted} />
+              )}
+            </View>
+            <View style={styles.personnelInfo}>
+              <Text style={styles.personnelName}>{person.name} {person.surname}</Text>
+              <Text style={styles.personnelRole}>{person.role}</Text>
+              {person.phone ? (
+                <Text style={styles.personnelPhone}>{person.phone}</Text>
+              ) : null}
+            </View>
+            <View style={styles.personnelActions}>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => openPersonnelEdit(person)}
+              >
+                <Ionicons name="create-outline" size={20} color={COLORS.info} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => handleDeletePersonnel(person)}
+              >
+                <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        {personnel.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={48} color={COLORS.textMuted} />
+            <Text style={styles.emptyText}>Henüz personel yok</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  function renderAppointments() {
+    return (
+      <View>
+        <Text style={styles.sectionTitle}>Randevular</Text>
+
+        {appointments.map((apt) => (
+          <View key={apt.id} style={styles.appointmentCard}>
+            <View style={styles.aptHeader}>
+              <View style={[styles.aptStatusBadge, {
+                backgroundColor: apt.status === 'confirmed' ? '#D1FAE5' :
+                  apt.status === 'cancelled' ? '#FEE2E2' : '#FEF3C7'
+              }]}>
+                <Text style={[styles.aptStatusText, {
+                  color: apt.status === 'confirmed' ? COLORS.success :
+                    apt.status === 'cancelled' ? COLORS.error : COLORS.warning
+                }]}>
+                  {apt.status === 'confirmed' ? 'Onaylı' :
+                    apt.status === 'cancelled' ? 'İptal' : 'Bekliyor'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.aptService}>{apt.service || 'Hizmet belirtilmemiş'}</Text>
+            <Text style={styles.aptDate}>
+              {apt.date || 'Tarih belirtilmemiş'} - {apt.time || ''}
+            </Text>
+            {apt.status === 'pending' && (
+              <View style={styles.aptActions}>
+                <TouchableOpacity
+                  style={[styles.aptBtn, { backgroundColor: COLORS.success }]}
+                  onPress={() => handleAppointmentAction(apt, 'confirmed')}
+                >
+                  <Ionicons name="checkmark" size={16} color="#FFF" />
+                  <Text style={styles.aptBtnText}>Onayla</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.aptBtn, { backgroundColor: COLORS.error }]}
+                  onPress={() => handleAppointmentAction(apt, 'cancelled')}
+                >
+                  <Ionicons name="close" size={16} color="#FFF" />
+                  <Text style={styles.aptBtnText}>İptal</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ))}
+
+        {appointments.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={48} color={COLORS.textMuted} />
+            <Text style={styles.emptyText}>Henüz randevu yok</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  function renderSettings() {
+    return (
+      <View>
+        <Text style={styles.sectionTitle}>Salon Bilgileri</Text>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsRow}>
+            <Text style={styles.settingsLabel}>Salon Adı</Text>
+            <Text style={styles.settingsValue}>{salon.name}</Text>
+          </View>
+          <View style={styles.settingsRow}>
+            <Text style={styles.settingsLabel}>Telefon</Text>
+            <Text style={styles.settingsValue}>{salon.phone}</Text>
+          </View>
+          <View style={styles.settingsRow}>
+            <Text style={styles.settingsLabel}>Adres</Text>
+            <Text style={styles.settingsValue}>{salon.address}</Text>
+          </View>
+          <View style={styles.settingsRow}>
+            <Text style={styles.settingsLabel}>Kuruluş</Text>
+            <Text style={styles.settingsValue}>{salon.foundedYear}</Text>
+          </View>
+          <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.settingsLabel}>Sahip</Text>
+            <Text style={styles.settingsValue}>{salon.owner}</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.editSalonBtn} onPress={openSalonEdit}>
+          <Ionicons name="create-outline" size={20} color="#FFF" />
+          <Text style={styles.editSalonBtnText}>Bilgileri Düzenle</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() => navigation.replace('Entry')}
+        >
+          <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+          <Text style={styles.logoutBtnText}>Çıkış Yap</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 55,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  ownerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  ownerBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 2,
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: '500',
+  },
+  tabTextActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  // Stats
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: SIZES.radiusMedium,
+    gap: 6,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  // Quick Actions
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 14,
+    borderRadius: SIZES.radiusMedium,
+    marginBottom: 8,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  quickActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  quickActionSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  // Personnel
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  personnelCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 14,
+    borderRadius: SIZES.radiusMedium,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  personnelAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  personnelInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  personnelName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  personnelRole: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  personnelPhone: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  personnelActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Appointments
+  appointmentCard: {
+    backgroundColor: '#FFF',
+    padding: 14,
+    borderRadius: SIZES.radiusMedium,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  aptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  aptStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  aptStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  aptService: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  aptDate: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  aptActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  aptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  aptBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  // Settings
+  settingsCard: {
+    backgroundColor: '#FFF',
+    borderRadius: SIZES.radiusMedium,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  settingsLabel: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  settingsValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 12,
+  },
+  editSalonBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: SIZES.radiusMedium,
+    gap: 8,
+    marginBottom: 12,
+  },
+  editSalonBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 14,
+    borderRadius: SIZES.radiusMedium,
+    gap: 8,
+  },
+  logoutBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.error,
+  },
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: COLORS.textMuted,
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    paddingBottom: 30,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  modalScroll: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: SIZES.radiusMedium,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: SIZES.radiusMedium,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+});
