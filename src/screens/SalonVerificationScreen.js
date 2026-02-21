@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ImageBackground,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -13,20 +12,16 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../constants/theme';
-import { getUserByPhone } from '../services/firebaseService';
-import { useUser } from '../context/UserContext';
 
-export default function VerificationScreen({ route, navigation }) {
-  const { phone } = route.params;
+export default function SalonVerificationScreen({ route, navigation }) {
+  const { phone, role, data } = route.params;
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(60);
   const inputRefs = useRef([]);
-  const { setUser } = useUser();
 
-  // Countdown timer
   useEffect(() => {
     if (timer <= 0) return;
     const interval = setInterval(() => {
@@ -37,7 +32,6 @@ export default function VerificationScreen({ route, navigation }) {
 
   const handleCodeChange = (text, index) => {
     const newCode = [...code];
-    // Handle paste (multi-digit)
     if (text.length > 1) {
       const digits = text.replace(/\D/g, '').split('').slice(0, 6);
       digits.forEach((digit, i) => {
@@ -54,7 +48,6 @@ export default function VerificationScreen({ route, navigation }) {
     newCode[index] = text.replace(/\D/g, '');
     setCode(newCode);
 
-    // Auto-focus next input
     if (text && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -78,18 +71,14 @@ export default function VerificationScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-      // Simulate verification delay
+      // Simulate SMS verification delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Check if user exists
-      const existingUser = await getUserByPhone(phone);
-      if (existingUser) {
-        // Existing user → go directly to main
-        setUser(existingUser);
-        navigation.replace('MainTabs');
+      // Phone already verified against DB in SalonLoginScreen
+      if (role === 'owner') {
+        navigation.replace('OwnerDashboard', { salon: data });
       } else {
-        // New user → go to name screen
-        navigation.replace('NameInput', { phone });
+        navigation.replace('EmployeeDashboard', { employee: data });
       }
     } catch (error) {
       console.error(error);
@@ -108,15 +97,10 @@ export default function VerificationScreen({ route, navigation }) {
   const maskedPhone = phone.replace(/(\+90)(\d{3})(\d{3})(\d{2})(\d{2})/, '$1 ($2) $3 $4 $5');
 
   return (
-    <ImageBackground
-      source={require('../../assets/background.jpg')}
-      style={styles.background}
-      blurRadius={3}
-    >
-      <View style={styles.overlay} />
+    <View style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
+        style={styles.flex}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -136,7 +120,7 @@ export default function VerificationScreen({ route, navigation }) {
             <View style={styles.logoCircle}>
               <Ionicons name="shield-checkmark" size={48} color="#FFFFFF" />
             </View>
-            <Text style={styles.title}>Doğrulama Kodu</Text>
+            <Text style={styles.title}>SMS Doğrulama</Text>
             <Text style={styles.subtitle}>
               <Text style={styles.phoneHighlight}>{maskedPhone}</Text>
               {'\n'}numarasına gönderilen 6 haneli kodu girin
@@ -146,7 +130,7 @@ export default function VerificationScreen({ route, navigation }) {
           {/* Code Input */}
           <View style={styles.formContainer}>
             <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Doğrulama</Text>
+              <Text style={styles.formTitle}>Doğrulama Kodu</Text>
 
               <View style={styles.codeContainer}>
                 {code.map((digit, index) => (
@@ -187,7 +171,7 @@ export default function VerificationScreen({ route, navigation }) {
           <View style={styles.buttonContainer}>
             <TouchableOpacity onPress={handleVerify} activeOpacity={0.8} disabled={loading}>
               <LinearGradient
-                colors={['#7B61FF', '#A78BFA']}
+                colors={[COLORS.primary, '#A78BFA']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={[styles.verifyButton, loading && { opacity: 0.7 }]}
@@ -197,7 +181,7 @@ export default function VerificationScreen({ route, navigation }) {
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-                    <Text style={styles.verifyButtonText}>Doğrula</Text>
+                    <Text style={styles.verifyButtonText}>Doğrula ve Giriş Yap</Text>
                   </>
                 )}
               </LinearGradient>
@@ -205,19 +189,16 @@ export default function VerificationScreen({ route, navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
   container: {
+    flex: 1,
+    backgroundColor: COLORS.dark,
+  },
+  flex: {
     flex: 1,
   },
   scrollContent: {
@@ -233,7 +214,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -264,7 +245,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -276,7 +257,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   formCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.85)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: SIZES.radiusLarge,
     padding: 20,
     borderWidth: 1,

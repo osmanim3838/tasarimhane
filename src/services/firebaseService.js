@@ -90,27 +90,38 @@ export async function getUserByPhone(phone) {
 
 // ==================== ADMIN: OWNER / EMPLOYEE LOGIN ====================
 
+// Normalize phone: strip spaces, dashes, parens. Ensure +90 prefix.
+function normalizePhone(p) {
+  if (!p) return '';
+  let cleaned = p.replace(/[\s\-\(\)]/g, '');
+  // Remove leading +90 or 90 to get raw 10-digit number
+  if (cleaned.startsWith('+90')) cleaned = cleaned.slice(3);
+  else if (cleaned.startsWith('90') && cleaned.length > 10) cleaned = cleaned.slice(2);
+  // Remove leading 0 if present (05xx → 5xx)
+  if (cleaned.startsWith('0') && cleaned.length === 11) cleaned = cleaned.slice(1);
+  return cleaned; // raw 10-digit number
+}
+
 export async function loginWithPhone(phone) {
-  // Check if owner
-  const salonQ = query(
-    collection(db, 'salons'),
-    where('ownerPhone', '==', phone)
-  );
-  const salonSnap = await getDocs(salonQ);
-  if (!salonSnap.empty) {
-    const salon = salonSnap.docs[0];
-    return { role: 'owner', data: { id: salon.id, ...salon.data() } };
+  const inputNorm = normalizePhone(phone);
+
+  // Check if owner - fetch salon directly and check nested owner.phone
+  const salonRef = doc(db, 'salons', 'tasarimhane');
+  const salonSnap = await getDoc(salonRef);
+  if (salonSnap.exists()) {
+    const salonData = salonSnap.data();
+    if (salonData.owner && normalizePhone(salonData.owner.phone) === inputNorm) {
+      return { role: 'owner', data: { id: salonSnap.id, ...salonData } };
+    }
   }
 
-  // Check if employee
-  const empQ = query(
-    collection(db, 'personnel'),
-    where('phone', '==', phone)
-  );
-  const empSnap = await getDocs(empQ);
-  if (!empSnap.empty) {
-    const emp = empSnap.docs[0];
-    return { role: 'employee', data: { id: emp.id, ...emp.data() } };
+  // Check if employee - fetch all personnel and compare normalized phones
+  const empSnap = await getDocs(collection(db, 'personnel'));
+  for (const empDoc of empSnap.docs) {
+    const empData = empDoc.data();
+    if (normalizePhone(empData.phone) === inputNorm) {
+      return { role: 'employee', data: { id: empDoc.id, ...empData } };
+    }
   }
 
   return null;
@@ -188,6 +199,43 @@ export async function seedDatabase() {
   const salonSnap = await getDoc(salonRef);
 
   if (salonSnap.exists()) {
+    // Migrate: ensure owner is an object (not a flat string from old seed)
+    const data = salonSnap.data();
+    if (typeof data.owner === 'string' || !data.owner || !data.owner.phone) {
+      await updateDoc(salonRef, {
+        owner: {
+          name: 'Mesut',
+          surname: 'AKÇAKOCA',
+          phone: data.ownerPhone || '+905551234567',
+          email: 'mesut@tasarimhane.com',
+          role: 'Salon Sahibi',
+        },
+      });
+      console.log('Migrated owner field to nested object');
+    }
+
+    // Migrate: ensure all personnel have phone fields
+    const phoneMap = {
+      'Fatma Gül': '+905551000001',
+      'İbrahim': '+905551000002',
+      'İsmet': '+905551000003',
+      'Mesut': '+905551234567',
+      'Osman Baki': '+905551000005',
+      'Şevket': '+905551000006',
+      'TASARIMHANE': '+905551000007',
+    };
+    const personnelSnap = await getDocs(collection(db, 'personnel'));
+    for (const pDoc of personnelSnap.docs) {
+      const pData = pDoc.data();
+      if (!pData.phone) {
+        const assignedPhone = phoneMap[pData.name] || null;
+        if (assignedPhone) {
+          await updateDoc(doc(db, 'personnel', pDoc.id), { phone: assignedPhone });
+          console.log(`Migrated phone for ${pData.name}: ${assignedPhone}`);
+        }
+      }
+    }
+
     console.log('Database already seeded');
     return;
   }
@@ -196,8 +244,13 @@ export async function seedDatabase() {
   await setDoc(salonRef, {
     name: 'TASARIMHANE',
     type: 'Bay/Bayan Güzellik Salonu',
-    owner: 'Mesut AKÇAKOCA',
-    ownerPhone: '+905551234567',
+    owner: {
+      name: 'Mesut',
+      surname: 'AKÇAKOCA',
+      phone: '+905551234567',
+      email: 'mesut@tasarimhane.com',
+      role: 'Salon Sahibi',
+    },
     foundedYear: '2014',
     staffCount: '4 Kişi',
     phone: '+90 555 123 4567',

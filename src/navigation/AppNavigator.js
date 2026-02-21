@@ -13,6 +13,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import PersonnelListScreen from '../screens/PersonnelListScreen';
 import PersonnelDetailScreen from '../screens/PersonnelDetailScreen';
 import SalonLoginScreen from '../screens/SalonLoginScreen';
+import SalonVerificationScreen from '../screens/SalonVerificationScreen';
 import OwnerDashboardScreen from '../screens/OwnerDashboardScreen';
 import EmployeeDashboardScreen from '../screens/EmployeeDashboardScreen';
 import CustomTabBar from '../components/CustomTabBar';
@@ -49,6 +50,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Verification" component={VerificationScreen} />
         <Stack.Screen name="NameInput" component={NameInputScreen} />
         <Stack.Screen name="SalonLogin" component={SalonLoginScreen} />
+        <Stack.Screen name="SalonVerification" component={SalonVerificationScreen} />
         <Stack.Screen name="OwnerDashboard" component={OwnerDashboardScreen} />
         <Stack.Screen name="EmployeeDashboard" component={EmployeeDashboardScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />

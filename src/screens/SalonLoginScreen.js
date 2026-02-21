@@ -56,11 +56,12 @@ export default function SalonLoginScreen({ navigation }) {
         Alert.alert('Hata', 'Bu telefon numarası kayıtlı değil.\nYalnızca salon sahibi veya çalışanlar giriş yapabilir.');
         return;
       }
-      if (result.role === 'owner') {
-        navigation.replace('OwnerDashboard', { salon: result.data });
-      } else {
-        navigation.replace('EmployeeDashboard', { employee: result.data });
-      }
+      // Phone is verified in DB, navigate to SMS verification
+      navigation.navigate('SalonVerification', {
+        phone: cleanPhone,
+        role: result.role,
+        data: result.data,
+      });
     } catch (error) {
       console.error(error);
       Alert.alert('Hata', 'Giriş sırasında bir sorun oluştu.');

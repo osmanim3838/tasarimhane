@@ -524,7 +524,7 @@ export default function OwnerDashboardScreen({ route, navigation }) {
           </View>
           <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.settingsLabel}>Sahip</Text>
-            <Text style={styles.settingsValue}>{salon.owner}</Text>
+            <Text style={styles.settingsValue}>{salon.owner?.name} {salon.owner?.surname}</Text>
           </View>
         </View>
 

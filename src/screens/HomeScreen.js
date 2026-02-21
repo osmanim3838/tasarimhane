@@ -48,7 +48,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800' }}
+      source={require('../../assets/background.jpg')}
       style={styles.background}
     >
       <View style={styles.overlay} />
