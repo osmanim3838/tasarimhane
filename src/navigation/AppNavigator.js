@@ -16,6 +16,8 @@ import SalonLoginScreen from '../screens/SalonLoginScreen';
 import SalonVerificationScreen from '../screens/SalonVerificationScreen';
 import OwnerDashboardScreen from '../screens/OwnerDashboardScreen';
 import EmployeeDashboardScreen from '../screens/EmployeeDashboardScreen';
+import AppointmentScreen from '../screens/AppointmentScreen';
+import MyAppointmentsScreen from '../screens/MyAppointmentsScreen';
 import CustomTabBar from '../components/CustomTabBar';
 
 const Stack = createNativeStackNavigator();
@@ -54,6 +56,8 @@ export default function AppNavigator() {
         <Stack.Screen name="OwnerDashboard" component={OwnerDashboardScreen} />
         <Stack.Screen name="EmployeeDashboard" component={EmployeeDashboardScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="Appointment" component={AppointmentScreen} />
+        <Stack.Screen name="MyAppointments" component={MyAppointmentsScreen} />
         <Stack.Screen name="PersonnelList" component={PersonnelListScreen} />
         <Stack.Screen name="PersonnelDetail" component={PersonnelDetailScreen} />
       </Stack.Navigator>

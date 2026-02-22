@@ -88,6 +88,17 @@ export async function getUserByPhone(phone) {
   return null;
 }
 
+export async function deleteUser(userId) {
+  // Delete user document
+  await deleteDoc(doc(db, 'users', userId));
+  // Delete user's appointments
+  const q = query(collection(db, 'appointments'), where('userId', '==', userId));
+  const snapshot = await getDocs(q);
+  for (const appointmentDoc of snapshot.docs) {
+    await deleteDoc(doc(db, 'appointments', appointmentDoc.id));
+  }
+}
+
 // ==================== ADMIN: OWNER / EMPLOYEE LOGIN ====================
 
 // Normalize phone: strip spaces, dashes, parens. Ensure +90 prefix.
@@ -174,21 +185,47 @@ export async function createAppointment(data) {
 export async function getUserAppointments(userId) {
   const q = query(
     collection(db, 'appointments'),
-    where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
+    where('userId', '==', userId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const results = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  // Sort client-side (newest first)
+  results.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis?.() || 0;
+    const bTime = b.createdAt?.toMillis?.() || 0;
+    return bTime - aTime;
+  });
+  return results;
+}
+
+export async function getPersonnelAppointments(personnelId) {
+  const q = query(
+    collection(db, 'appointments'),
+    where('personnelId', '==', personnelId)
+  );
+  const snapshot = await getDocs(q);
+  const results = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  results.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis?.() || 0;
+    const bTime = b.createdAt?.toMillis?.() || 0;
+    return bTime - aTime;
+  });
+  return results;
 }
 
 export async function getSalonAppointments(salonId) {
   const q = query(
     collection(db, 'appointments'),
-    where('salonId', '==', salonId),
-    orderBy('createdAt', 'desc')
+    where('salonId', '==', salonId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const results = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  results.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis?.() || 0;
+    const bTime = b.createdAt?.toMillis?.() || 0;
+    return bTime - aTime;
+  });
+  return results;
 }
 
 // ==================== SEED DATA ====================

@@ -24,7 +24,7 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
     <View style={styles.container}>
       {/* FAB Button */}
       <View style={styles.fabContainer}>
-        <TouchableOpacity activeOpacity={0.8}>
+        <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('Appointment')}>
           <LinearGradient
             colors={COLORS.headerGradient}
             style={styles.fab}

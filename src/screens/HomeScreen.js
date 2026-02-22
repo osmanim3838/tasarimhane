@@ -8,6 +8,7 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -72,22 +73,22 @@ export default function HomeScreen({ navigation }) {
 
             {/* Action Buttons Grid */}
             <View style={styles.actionGrid}>
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7} onPress={() => navigation.navigate('Appointment')}>
                 <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>Randevu Al</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7} onPress={() => { const phone = salon?.phone?.replace(/\s/g, ''); if (phone) Linking.openURL(`tel:${phone}`); }}>
                 <Ionicons name="call-outline" size={24} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>Ara</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7} onPress={() => { const wp = (salon?.whatsapp || salon?.phone || '').replace(/\s/g, '').replace('+', ''); if (wp) Linking.openURL(`https://wa.me/${wp}`); }}>
                 <Ionicons name="logo-whatsapp" size={24} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>WhatsApp</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.actionButton} activeOpacity={0.7} onPress={() => { const addr = salon?.address; if (addr) Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`); }}>
                 <Ionicons name="location-outline" size={24} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>Konum</Text>
               </TouchableOpacity>
@@ -105,7 +106,11 @@ export default function HomeScreen({ navigation }) {
         {/* Cards Grid */}
         <View style={styles.cardsGrid}>
           {/* Randevular */}
-          <TouchableOpacity style={styles.gridCard} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.gridCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('MyAppointments')}
+          >
             <LinearGradient
               colors={COLORS.cardOrange}
               style={styles.gridCardGradient}

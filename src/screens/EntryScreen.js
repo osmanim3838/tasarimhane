@@ -75,7 +75,7 @@ export default function EntryScreen({ navigation }) {
             <View style={styles.logoCircle}>
               <MaterialCommunityIcons name="content-cut" size={48} color="#FFFFFF" />
             </View>
-            <Text style={styles.title}>Kuaförüm Yanımda</Text>
+            <Text style={styles.title}> Tasarımhane</Text>
             <Text style={styles.subtitle}>
               Telefon numaranızla giriş yapın
             </Text>

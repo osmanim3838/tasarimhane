@@ -70,9 +70,6 @@ export default function SalonLoginScreen({ navigation }) {
     }
   };
 
-  const handleRegister = () => {
-    Alert.alert('Bilgi', 'Kayıt sayfasına yönlendiriliyor...');
-  };
 
   return (
     <View style={styles.container}>
@@ -139,14 +136,6 @@ export default function SalonLoginScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.registerButton}
-          onPress={handleRegister}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="person-add-outline" size={22} color="rgba(255,255,255,0.8)" />
-          <Text style={styles.registerButtonText}>Kayıt Ol</Text>
-        </TouchableOpacity>
       </KeyboardAvoidingView>
     </View>
   );
@@ -253,7 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
-    marginBottom: 12,
+    marginBottom: 50,
     gap: 10,
   },
   loginButtonText: {
@@ -261,21 +250,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255,255,255,0.8)',
   },
-  registerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: SIZES.radiusMedium,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginBottom: 50,
-    gap: 10,
-  },
-  registerButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
-  },
+
 });

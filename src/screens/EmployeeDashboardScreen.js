@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SIZES } from '../constants/theme';
-import { updatePersonnel, getPersonnelById } from '../services/firebaseService';
+import { updatePersonnel, getPersonnelById, getPersonnelAppointments } from '../services/firebaseService';
 
 export default function EmployeeDashboardScreen({ route, navigation }) {
   const { employee: initialEmployee } = route.params;
@@ -21,6 +21,9 @@ export default function EmployeeDashboardScreen({ route, navigation }) {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppts, setLoadingAppts] = useState(false);
+  const [activeTab, setActiveTab] = useState(null); // null = home, 'profile', 'appointments'
 
   // Editable fields
   const [name, setName] = useState(employee.name || '');
@@ -30,6 +33,48 @@ export default function EmployeeDashboardScreen({ route, navigation }) {
   const [workingHours, setWorkingHours] = useState(employee.workingHours || '');
   const [dayOff, setDayOff] = useState(employee.dayOff || '');
   const [about, setAbout] = useState(employee.about || '');
+
+  // Censoring helpers
+  const censorName = (fullName) => {
+    if (!fullName || fullName.trim().length === 0) return '***';
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) {
+      const w = parts[0];
+      if (w.length <= 1) return '*';
+      return w[0] + '*'.repeat(w.length - 2) + w[w.length - 1];
+    }
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    const cFirst = first[0] + '*'.repeat(first.length - 1);
+    const cLast = '*'.repeat(last.length - 1) + last[last.length - 1];
+    return cFirst + ' ' + cLast;
+  };
+
+  const censorPhone = (phone) => {
+    if (!phone) return '(***) *** ** **';
+    const digits = phone.replace(/\D/g, '');
+    // Get last 10 digits (strip country code)
+    const local = digits.length > 10 ? digits.slice(-10) : digits;
+    if (local.length < 10) return '(***) *** ** **';
+    return `(${local[0]}**) *** ** ${local.slice(8, 10)}`;
+  };
+
+  const fetchAppointments = async () => {
+    setLoadingAppts(true);
+    try {
+      const data = await getPersonnelAppointments(employee.id);
+      setAppointments(data);
+    } catch (error) {
+      console.error('Randevular yüklenemedi:', error);
+    } finally {
+      setLoadingAppts(false);
+    }
+  };
+
+  const openAppointments = async () => {
+    setActiveTab('appointments');
+    await fetchAppointments();
+  };
 
   const refreshData = async () => {
     setLoading(true);
@@ -104,11 +149,16 @@ export default function EmployeeDashboardScreen({ route, navigation }) {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient colors={['#1E293B', '#334155']} style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.replace('Entry')}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => {
+          if (activeTab) { setActiveTab(null); setEditing(false); }
+          else navigation.replace('Entry');
+        }}>
           <Ionicons name="arrow-back" size={22} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Profil Paneli</Text>
+          <Text style={styles.headerTitle}>
+            {activeTab === 'profile' ? 'Profil Bilgileri' : activeTab === 'appointments' ? 'Randevularım' : 'Personel Paneli'}
+          </Text>
           <Text style={styles.headerSubtitle}>Personel Hesabı</Text>
         </View>
         <View style={styles.empBadge}>
@@ -118,101 +168,202 @@ export default function EmployeeDashboardScreen({ route, navigation }) {
       </LinearGradient>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            {employee.image ? (
-              <Image source={{ uri: employee.image }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={40} color={COLORS.textMuted} />
-              </View>
-            )}
-          </View>
-          <Text style={styles.profileName}>{employee.name} {employee.surname}</Text>
-          <Text style={styles.profileRole}>{employee.role}</Text>
-          {employee.phone ? (
-            <Text style={styles.profilePhone}>{employee.phone}</Text>
-          ) : null}
-        </View>
-
-        {/* Info / Edit Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {editing ? 'Profili Düzenle' : 'Profil Bilgileri'}
-          </Text>
-          {!editing && (
-            <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)}>
-              <Ionicons name="create-outline" size={18} color="#FFF" />
-              <Text style={styles.editBtnText}>Düzenle</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {editing ? (
-          <View style={styles.formCard}>
-            <Text style={styles.fieldLabel}>İsim</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} />
-
-            <Text style={styles.fieldLabel}>Soyisim</Text>
-            <TextInput style={styles.input} value={surname} onChangeText={setSurname} />
-
-            <Text style={styles.fieldLabel}>Rol / Ünvan</Text>
-            <TextInput style={styles.input} value={role} onChangeText={setRole} />
-
-            <Text style={styles.fieldLabel}>Hizmetler (virgülle ayırın)</Text>
-            <TextInput style={styles.input} value={services} onChangeText={setServices} multiline />
-
-            <Text style={styles.fieldLabel}>Çalışma Saatleri</Text>
-            <TextInput style={styles.input} value={workingHours} onChangeText={setWorkingHours} placeholder="10:00 - 22:00" />
-
-            <Text style={styles.fieldLabel}>İzin Günü</Text>
-            <TextInput style={styles.input} value={dayOff} onChangeText={setDayOff} placeholder="Pazartesi" />
-
-            <Text style={styles.fieldLabel}>Hakkında</Text>
-            <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-              value={about}
-              onChangeText={setAbout}
-              multiline
-            />
-
-            <View style={styles.formActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-                <Text style={styles.cancelBtnText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveBtn, saving && { opacity: 0.7 }]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#FFF" size="small" />
+        {/* ===== HOME TAB ===== */}
+        {!activeTab && (
+          <>
+            {/* Profile Card */}
+            <View style={styles.profileCard}>
+              <View style={styles.avatarContainer}>
+                {employee.image ? (
+                  <Image source={{ uri: employee.image }} style={styles.avatarImage} />
                 ) : (
-                  <Text style={styles.saveBtnText}>Kaydet</Text>
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={40} color={COLORS.textMuted} />
+                  </View>
                 )}
-              </TouchableOpacity>
+              </View>
+              <Text style={styles.profileName}>{employee.name} {employee.surname}</Text>
+              <Text style={styles.profileRole}>{employee.role}</Text>
+              {employee.phone ? (
+                <Text style={styles.profilePhone}>{employee.phone}</Text>
+              ) : null}
             </View>
-          </View>
-        ) : (
-          <View style={styles.infoCard}>
-            <InfoRow label="İsim" value={`${employee.name} ${employee.surname}`} />
-            <InfoRow label="Rol" value={employee.role} />
-            <InfoRow label="Hizmetler" value={(employee.services || []).join(', ') || 'Belirtilmemiş'} />
-            <InfoRow label="Çalışma Saatleri" value={employee.workingHours || 'Belirtilmemiş'} />
-            <InfoRow label="İzin Günü" value={employee.dayOff || 'Belirtilmemiş'} />
-            <InfoRow label="Hakkında" value={employee.about || 'Belirtilmemiş'} last />
-          </View>
+
+            {/* Hızlı İşlemler */}
+            <Text style={styles.quickTitle}>Hızlı İşlemler</Text>
+
+            <TouchableOpacity style={styles.actionCard} onPress={() => setActiveTab('profile')} activeOpacity={0.7}>
+              <View style={[styles.actionIconWrap, { backgroundColor: '#EDE9FE' }]}>
+                <Ionicons name="create-outline" size={24} color={COLORS.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Profili Düzenle</Text>
+                <Text style={styles.actionDesc}>Bilgilerini görüntüle ve düzenle</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionCard} onPress={openAppointments} activeOpacity={0.7}>
+              <View style={[styles.actionIconWrap, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="calendar-outline" size={24} color="#3B82F6" />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Randevularım</Text>
+                <Text style={styles.actionDesc}>Alınan randevuları görüntüle</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+            </TouchableOpacity>
+
+            {/* Logout */}
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              onPress={() => navigation.replace('Entry')}
+            >
+              <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+              <Text style={styles.logoutBtnText}>Çıkış Yap</Text>
+            </TouchableOpacity>
+          </>
         )}
 
-        {/* Logout */}
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={() => navigation.replace('Entry')}
-        >
-          <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-          <Text style={styles.logoutBtnText}>Çıkış Yap</Text>
-        </TouchableOpacity>
+        {/* ===== PROFILE TAB ===== */}
+        {activeTab === 'profile' && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {editing ? 'Profili Düzenle' : 'Profil Bilgileri'}
+              </Text>
+              {!editing && (
+                <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)}>
+                  <Ionicons name="create-outline" size={18} color="#FFF" />
+                  <Text style={styles.editBtnText}>Düzenle</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {editing ? (
+              <View style={styles.formCard}>
+                <Text style={styles.fieldLabel}>İsim</Text>
+                <TextInput style={styles.input} value={name} onChangeText={setName} />
+
+                <Text style={styles.fieldLabel}>Soyisim</Text>
+                <TextInput style={styles.input} value={surname} onChangeText={setSurname} />
+
+                <Text style={styles.fieldLabel}>Rol / Ünvan</Text>
+                <TextInput style={styles.input} value={role} onChangeText={setRole} />
+
+                <Text style={styles.fieldLabel}>Hizmetler (virgülle ayırın)</Text>
+                <TextInput style={styles.input} value={services} onChangeText={setServices} multiline />
+
+                <Text style={styles.fieldLabel}>Çalışma Saatleri</Text>
+                <TextInput style={styles.input} value={workingHours} onChangeText={setWorkingHours} placeholder="10:00 - 22:00" />
+
+                <Text style={styles.fieldLabel}>İzin Günü</Text>
+                <TextInput style={styles.input} value={dayOff} onChangeText={setDayOff} placeholder="Pazartesi" />
+
+                <Text style={styles.fieldLabel}>Hakkında</Text>
+                <TextInput
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  value={about}
+                  onChangeText={setAbout}
+                  multiline
+                />
+
+                <View style={styles.formActions}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+                    <Text style={styles.cancelBtnText}>İptal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.saveBtn, saving && { opacity: 0.7 }]}
+                    onPress={handleSave}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.saveBtnText}>Kaydet</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.infoCard}>
+                <InfoRow label="İsim" value={`${employee.name} ${employee.surname}`} />
+                <InfoRow label="Rol" value={employee.role} />
+                <InfoRow label="Hizmetler" value={(employee.services || []).join(', ') || 'Belirtilmemiş'} />
+                <InfoRow label="Çalışma Saatleri" value={employee.workingHours || 'Belirtilmemiş'} />
+                <InfoRow label="İzin Günü" value={employee.dayOff || 'Belirtilmemiş'} />
+                <InfoRow label="Hakkında" value={employee.about || 'Belirtilmemiş'} last />
+              </View>
+            )}
+          </>
+        )}
+
+        {/* ===== APPOINTMENTS TAB ===== */}
+        {activeTab === 'appointments' && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Randevularım</Text>
+              <TouchableOpacity style={styles.refreshBtn} onPress={fetchAppointments}>
+                <Ionicons name="refresh" size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingAppts ? (
+              <View style={styles.apptLoading}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              </View>
+            ) : appointments.length === 0 ? (
+              <View style={styles.emptyAppt}>
+                <Ionicons name="calendar-outline" size={40} color={COLORS.textMuted} />
+                <Text style={styles.emptyApptText}>Henüz randevu yok</Text>
+              </View>
+            ) : (
+              appointments.map((appt) => {
+                const statusMap = {
+                  pending: { label: 'Bekliyor', color: '#F59E0B', bg: '#FEF3C7' },
+                  confirmed: { label: 'Onaylandı', color: '#10B981', bg: '#D1FAE5' },
+                  cancelled: { label: 'İptal', color: '#EF4444', bg: '#FEE2E2' },
+                  completed: { label: 'Tamamlandı', color: '#6366F1', bg: '#E0E7FF' },
+                };
+                const st = statusMap[appt.status] || statusMap.pending;
+                return (
+                  <View key={appt.id} style={styles.apptCard}>
+                    <View style={styles.apptHeader}>
+                      <View style={styles.apptDateRow}>
+                        <Ionicons name="calendar" size={16} color={COLORS.primary} />
+                        <Text style={styles.apptDate}>{appt.date || '-'}</Text>
+                        <Ionicons name="time" size={16} color={COLORS.primary} style={{ marginLeft: 12 }} />
+                        <Text style={styles.apptTime}>{appt.time || '-'}</Text>
+                      </View>
+                      <View style={[styles.apptBadge, { backgroundColor: st.bg }]}>
+                        <Text style={[styles.apptBadgeText, { color: st.color }]}>{st.label}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.apptBody}>
+                      <View style={styles.apptRow}>
+                        <Ionicons name="person-outline" size={15} color={COLORS.textMuted} />
+                        <Text style={styles.apptLabel}>Müşteri:</Text>
+                        <Text style={styles.apptValue}>{censorName(appt.userName)}</Text>
+                      </View>
+                      <View style={styles.apptRow}>
+                        <Ionicons name="call-outline" size={15} color={COLORS.textMuted} />
+                        <Text style={styles.apptLabel}>Telefon:</Text>
+                        <Text style={styles.apptValue}>{censorPhone(appt.userPhone)}</Text>
+                      </View>
+                      {appt.services && appt.services.length > 0 && (
+                        <View style={styles.apptRow}>
+                          <Ionicons name="cut-outline" size={15} color={COLORS.textMuted} />
+                          <Text style={styles.apptLabel}>Hizmet:</Text>
+                          <Text style={styles.apptValue} numberOfLines={2}>{appt.services.join(', ')}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -322,6 +473,44 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 4,
   },
+  // Quick Actions
+  quickTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 16,
+    borderRadius: SIZES.radiusMedium,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: 12,
+  },
+  actionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  actionDesc: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
   // Section
   sectionHeader: {
     flexDirection: 'row',
@@ -425,6 +614,94 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     color: '#FFF',
+  },
+  // Appointments
+  refreshBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  apptLoading: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  emptyAppt: {
+    alignItems: 'center',
+    padding: 30,
+    backgroundColor: '#FFF',
+    borderRadius: SIZES.radiusMedium,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: 20,
+  },
+  emptyApptText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  apptCard: {
+    backgroundColor: '#FFF',
+    borderRadius: SIZES.radiusMedium,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  apptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    backgroundColor: '#F8FAFC',
+  },
+  apptDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  apptDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  apptTime: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  apptBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  apptBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  apptBody: {
+    padding: 14,
+    gap: 10,
+  },
+  apptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  apptLabel: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    width: 65,
+  },
+  apptValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
+    flex: 1,
   },
   // Logout
   logoutBtn: {

@@ -1,0 +1,340 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Platform,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { COLORS, SIZES } from '../constants/theme';
+import { getUserAppointments } from '../services/firebaseService';
+import { useUser } from '../context/UserContext';
+
+const MONTHS_TR = [
+  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+];
+
+const STATUS_MAP = {
+  pending: { label: 'Beklemede', color: COLORS.warning, icon: 'time-outline', bg: '#FEF3C7' },
+  confirmed: { label: 'Onaylandı', color: COLORS.success, icon: 'checkmark-circle-outline', bg: '#DCFCE7' },
+  cancelled: { label: 'İptal Edildi', color: COLORS.error, icon: 'close-circle-outline', bg: '#FEE2E2' },
+  completed: { label: 'Tamamlandı', color: COLORS.info, icon: 'checkmark-done-outline', bg: '#DBEAFE' },
+};
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const day = parseInt(parts[2], 10);
+  const month = MONTHS_TR[parseInt(parts[1], 10) - 1] || '';
+  const year = parts[0];
+  return `${day} ${month} ${year}`;
+}
+
+export default function MyAppointmentsScreen({ navigation }) {
+  const { user } = useUser();
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadAppointments = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const data = await getUserAppointments(user.id);
+      setAppointments(data);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadAppointments();
+  };
+
+  const getStatus = (status) => STATUS_MAP[status] || STATUS_MAP.pending;
+
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIconBg}>
+        <Ionicons name="calendar-outline" size={56} color={COLORS.primary} />
+      </View>
+      <Text style={styles.emptyTitle}>Henüz randevunuz yok</Text>
+      <Text style={styles.emptySubtitle}>
+        İlk randevunuzu oluşturmak için aşağıdaki butona tıklayın
+      </Text>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('Appointment')}
+      >
+        <LinearGradient colors={COLORS.headerGradient} style={styles.emptyButton}>
+          <Ionicons name="add-circle-outline" size={22} color="#FFF" />
+          <Text style={styles.emptyButtonText}>Randevu Oluştur</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderAppointmentCard = (appointment) => {
+    const status = getStatus(appointment.status);
+    return (
+      <View key={appointment.id} style={styles.card}>
+        {/* Status badge */}
+        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+          <Ionicons name={status.icon} size={16} color={status.color} />
+          <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+        </View>
+
+        {/* Personnel */}
+        <View style={styles.cardRow}>
+          <View style={[styles.cardIconBg, { backgroundColor: '#EDE9FE' }]}>
+            <Ionicons name="person" size={18} color={COLORS.primary} />
+          </View>
+          <View style={styles.cardRowContent}>
+            <Text style={styles.cardRowLabel}>Personel</Text>
+            <Text style={styles.cardRowValue}>{appointment.personnelName || '-'}</Text>
+          </View>
+        </View>
+
+        {/* Services */}
+        <View style={styles.cardRow}>
+          <View style={[styles.cardIconBg, { backgroundColor: '#FEF3C7' }]}>
+            <MaterialCommunityIcons name="content-cut" size={18} color={COLORS.warning} />
+          </View>
+          <View style={styles.cardRowContent}>
+            <Text style={styles.cardRowLabel}>Hizmetler</Text>
+            <Text style={styles.cardRowValue}>
+              {(appointment.services || []).join(', ') || '-'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Date & Time */}
+        <View style={styles.cardRow}>
+          <View style={[styles.cardIconBg, { backgroundColor: '#DBEAFE' }]}>
+            <Ionicons name="calendar" size={18} color={COLORS.info} />
+          </View>
+          <View style={styles.cardRowContent}>
+            <Text style={styles.cardRowLabel}>Tarih & Saat</Text>
+            <Text style={styles.cardRowValue}>
+              {formatDate(appointment.date)} — {appointment.time || ''}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <LinearGradient colors={COLORS.headerGradient} style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Randevularım</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate('Appointment')}
+        >
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+          }
+        >
+          {appointments.length === 0 ? (
+            renderEmpty()
+          ) : (
+            <>
+              <Text style={styles.countText}>
+                {appointments.length} randevu bulundu
+              </Text>
+              {appointments.map(renderAppointmentCard)}
+            </>
+          )}
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 55 : 40,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  countText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    marginBottom: 14,
+    marginLeft: 4,
+  },
+
+  // ── Card ──
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: SIZES.radiusLarge,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginBottom: 14,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  cardIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardRowContent: {
+    flex: 1,
+  },
+  cardRowLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    marginBottom: 3,
+  },
+  cardRowValue: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    fontWeight: '600',
+  },
+
+  // ── Empty state ──
+  emptyContainer: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 32,
+  },
+  emptyIconBg: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: SIZES.radiusMedium,
+  },
+  emptyButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+});

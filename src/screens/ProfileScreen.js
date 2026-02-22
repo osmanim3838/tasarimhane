@@ -6,11 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../constants/theme';
 import { useUser } from '../context/UserContext';
+import { deleteUser } from '../services/firebaseService';
 
 export default function ProfileScreen({ navigation }) {
   const { user, setUser } = useUser();
@@ -52,44 +54,50 @@ export default function ProfileScreen({ navigation }) {
 
           <View style={styles.menuDivider} />
 
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('MyAppointments')}
+          >
             <View style={[styles.menuIconBg, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="calendar-outline" size={20} color={COLORS.warning} />
             </View>
             <Text style={styles.menuText}>Randevularım</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={[styles.menuIconBg, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="heart-outline" size={20} color={COLORS.success} />
-            </View>
-            <Text style={styles.menuText}>Favorilerim</Text>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
-          </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={[styles.menuIconBg, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="notifications-outline" size={20} color={COLORS.info} />
-            </View>
-            <Text style={styles.menuText}>Bildirimler</Text>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
-          </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={[styles.menuIconBg, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="settings-outline" size={20} color={COLORS.error} />
-            </View>
-            <Text style={styles.menuText}>Ayarlar</Text>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
-          </TouchableOpacity>
         </View>
+
+        {/* Delete Account Button */}
+        <TouchableOpacity
+          style={styles.deleteButton}
+          activeOpacity={0.7}
+          onPress={() => {
+            Alert.alert(
+              'Hesabı Sil',
+              'Hesabınızı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+              [
+                { text: 'İptal', style: 'cancel' },
+                {
+                  text: 'Evet, Sil',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      if (user?.id) await deleteUser(user.id);
+                      setUser(null);
+                      navigation.replace('Entry');
+                    } catch (e) {
+                      console.error(e);
+                      Alert.alert('Hata', 'Hesap silinirken bir sorun oluştu.');
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+        >
+          <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+          <Text style={styles.deleteText}>Hesabı Sil</Text>
+        </TouchableOpacity>
 
         {/* Logout Button */}
         <TouchableOpacity
@@ -214,6 +222,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoutText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.error,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: SIZES.radiusMedium,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    gap: 8,
+    marginBottom: 16,
+  },
+  deleteText: {
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.error,

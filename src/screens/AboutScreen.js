@@ -116,7 +116,7 @@ export default function AboutScreen() {
             <FontAwesome5 name="user-tie" size={18} color={COLORS.primary} style={styles.infoIcon} />
             <View>
               <Text style={styles.infoLabel}>Salon Sahibi</Text>
-              <Text style={styles.infoValue}>{salon?.owner || '-'}</Text>
+              <Text style={styles.infoValue}>{salon?.owner?.name ? `${salon.owner.name} ${salon.owner.surname || ''}`.trim() : '-'}</Text>
             </View>
           </View>
 
